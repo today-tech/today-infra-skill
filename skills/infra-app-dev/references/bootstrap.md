@@ -4,7 +4,7 @@
 
 从零建工程、Gradle 插件、@InfraApplication 启动模型、打包运行。
 
-覆盖文档：38 页（含示例 19 页）。原文位于仓库 `infra-docs/`，下方每个页面标注了路径。
+覆盖文档：38 页（含示例 20 页）。原文位于仓库 `infra-docs/`，下方每个页面标注了路径。
 
 ## 页面索引
 
@@ -25,7 +25,7 @@
 - 应用开发 —— `application:index`
 - 缓存 —— `application:io/caching`
 - 发送邮件 —— `application:io/email`
-- 调用 REST 服务 —— `application:io/rest-client`
+- **调用 REST 服务** —— `application:io/rest-client`
 - **校验** —— `application:io/validation`
 - 应用测试支持 —— `application:testing/index`
 - Testcontainers —— `application:testing/testcontainers`
@@ -456,7 +456,20 @@ TODAY INFRA 使用 infra.mail.javamail.JavaMailSender 抽象发送邮件，并�
 
 ### 概述
 
-TODAY INFRA 提供命令式 infra.web.client.RestClient 和响应式 infra.web.reactive.client.WebClient。 普通阻塞应用通常选择 RestClient；使用 Reactor 的非阻塞应用可以选择 WebClient。 底层 API 的详细说明见 REST 客户端。
+TODAY INFRA 提供命令式 infra.restclient.RestClient 和响应式 infra.web.reactive.client.WebClient。 普通阻塞应用通常选择 RestClient；使用 Reactor 的非阻塞应用可以选择 WebClient。 底层 API 的详细说明见 REST 客户端。
+
+#### 限制 HTTP 客户端可访问的 IP 地址
+
+如果应用需要请求由用户提供的 URL，可以使用 InetAddressFilter 限制目标地址，降低服务端请求伪造（SSRF）的风险。 infra.http.client.InetAddressFilter 支持精确 IP 地址、CIDR 网段以及 and、or、andNot 和 negate 组合操作。 例如，InetAddressFilter.externalAddresses() 可排除私有地址、组播地址以及 RFC 6890 的特殊用途地址。 为单个客户端配置过滤器：
+
+```java
+HttpClientSettings settings = HttpClientSettings.defaults()
+        .withInetAddressFilter(InetAddressFilter.externalAddresses());
+RestClient client = RestClient.builder()
+        .requestFactory(ClientHttpRequestFactoryBuilder.jdk().build(settings))
+        .baseUrl("https://example.org")
+        .build();
+```
 
 ## 校验
 

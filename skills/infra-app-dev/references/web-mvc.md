@@ -4,7 +4,7 @@
 
 控制器、请求映射、方法参数与返回值、异常处理、MVC 配置、Netty 配置。
 
-覆盖文档：61 页（含示例 42 页）。原文位于仓库 `infra-docs/`，下方每个页面标注了路径。
+覆盖文档：61 页（含示例 44 页）。原文位于仓库 `infra-docs/`，下方每个页面标注了路径。
 
 ## 页面索引
 
@@ -32,12 +32,12 @@
 - 注解处理器 —— `web/webmvc/mvc-controller/ann-methods`
 - 方法参数 —— `web/webmvc/mvc-controller/ann-methods/arguments`
 - **@CookieValue** —— `web/webmvc/mvc-controller/ann-methods/cookievalue`
-- Flash 属性 —— `web/webmvc/mvc-controller/ann-methods/flash-attributes`
 - **HttpEntity** —— `web/webmvc/mvc-controller/ann-methods/httpentity`
 - **Jackson JSON** —— `web/webmvc/mvc-controller/ann-methods/jackson`
 - **矩阵变量** —— `web/webmvc/mvc-controller/ann-methods/matrix-variables`
 - **@ModelAttribute** —— `web/webmvc/mvc-controller/ann-methods/modelattrib-method-args`
 - **Multipart** —— `web/webmvc/mvc-controller/ann-methods/multipart-forms`
+- **重定向 Model** —— `web/webmvc/mvc-controller/ann-methods/redirect-model`
 - **重定向属性** —— `web/webmvc/mvc-controller/ann-methods/redirecting-passing-data`
 - **@RequestAttribute** —— `web/webmvc/mvc-controller/ann-methods/requestattrib`
 - **@RequestBody** —— `web/webmvc/mvc-controller/ann-methods/requestbody`
@@ -54,7 +54,7 @@
 - **声明** —— `web/webmvc/mvc-controller/ann`
 - DispatcherHandler —— `web/webmvc/mvc-core`
 - Web MVC 配置 —— `web/webmvc/mvc-core/config`
-- 异常 —— `web/webmvc/mvc-core/exceptionhandlers`
+- **异常** —— `web/webmvc/mvc-core/exceptionhandlers`
 - **过滤器** —— `web/webmvc/mvc-core/filters`
 - 拦截 —— `web/webmvc/mvc-core/handlermapping-interceptor`
 - 路径匹配 —— `web/webmvc/mvc-core/handlermapping-path`
@@ -144,13 +144,17 @@ SseEmitter 是 ResponseBodyEmitter 的子类，提供了 Server-Sent Events 支�
 
 有些场景需要直接写入 OutputStream (文件下载) 你就可以使用 StreamingResponseBody。如下例所示：
 
+##### Web MVC
+
+使用 WebMvcConfigurer 的 configureAsyncSupport 回调设置 MVC 的默认异步超时：
+
 ## 错误响应
 
 > 原文：[`web/webmvc/mvc-ann-rest-exceptions`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/web/webmvc/mvc-ann-rest-exceptions.adoc)
 
 ### 概述
 
-REST服务的一个常见需求是在错误响应的正文中包含详细信息。TODAY框架支持"HTTP API的问题详情"规范，即RFC 7807。 以下是这方面的主要抽象： - ProblemDetail -- RFC 7807问题详情的表示；一个简单的容器，用于存放规范中定义的标准字段和非标准字段。 - ErrorResponse -- 公开HTTP错误响应详细信息的契约，包括HTTP状态、响应头和RFC 7807格式的正文； 这允许异常封装并公开它们如何映射到HTTP响应的详细信息。所有 Web MVC 异常都实现了这一点。 - ErrorResponseException -- 基本的 ErrorResponse 实现，其他人可以将其用作方便的基类。 - ResponseEntityExceptionHandler -- 一个方便的基类，用于处理所有 Web MVC 异常和任何 ErrorRes
+REST 服务通常需要在错误响应体中提供结构化的错误信息。Web MVC 支持 RFC 9457：HTTP API 问题详情。 以下是这方面的主要抽象： - ProblemDetail -- RFC 9457 问题详情的表示，包含标准字段和应用自定义的扩展字段。 - ErrorResponse -- 描述异常如何映射为 HTTP 错误响应的契约，包括状态码、响应头和问题详情正文。 - ErrorResponseException -- 基本的 ErrorResponse 实现，其他人可以将其用作方便的基类。 - ResponseEntityExceptionHandler -- 一个方便的基类，用于处理所有 Web MVC 异常和任何 ErrorResponseException 的 @ControllerAdvice ，并渲染一个带正文的错误响应。
 
 #### 未处理异常的兜底响应
 
@@ -364,10 +368,10 @@ Web MVC 使用 ParameterResolvingStrategy 将请求转换为控制器方法参�
 import infra.context.annotation.Configuration;
 import infra.http.HttpStatus;
 import infra.web.HttpContext;
-import infra.web.bind.resolver.ParameterResolvingStrategies;
-import infra.web.bind.resolver.ParameterResolvingStrategy;
 import infra.web.config.annotation.WebMvcConfigurer;
 import infra.web.handler.method.HandlerParameter;
+import infra.web.handler.method.ParameterResolvingStrategies;
+import infra.web.handler.method.ParameterResolvingStrategy;
 import infra.web.server.ResponseStatusException;
 
 @Configuration
@@ -627,7 +631,7 @@ public class HelloController {
 
 ### 概述
 
-@ExceptionHandler、@InitBinder 和 @ModelAttribute 方法仅适用于在其中声明的 @Controller 类或类层次结构。相反，如果它们在 @ControllerAdvice 或 @RestControllerAdvice 类中声明，则它们适用于任何控制器。@ControllerAdvice 中的 @ExceptionHandler 方法可用于处理任何 @Controller 或任何其他处理器的异常。 @ControllerAdvice 被 @Component 元注释，因此可以通过 组件扫描 注册为 Infra bean。@RestControllerAdvice 被 @ControllerAdvice 和 @ResponseBody 元注释， 这意味着 @ExceptionHandler 方法的返回值将通过响应体消息转换进行渲染，而不是通过 HT
+@ExceptionHandler、@InitBinder 和 @ModelAttribute 方法仅适用于在其中声明的 @Controller 类或类层次结构。相反，如果它们在 @ControllerAdvice 或 @RestControllerAdvice 类中声明，则它们可以应用于多个控制器。未指定选择器时默认全局适用； 不限定控制器类型的 @ControllerAdvice 中的 @ExceptionHandler 也可用于处理其他处理器的异常。 @ControllerAdvice 被 @Component 元注释，因此可以通过 组件扫描 注册为 Infra bean。@RestControllerAdvice 被 @ControllerAdvice 和 @ResponseBody 元注释， 这意味着 @ExceptionHandler 方法的返回值将通过响应体消息转换进行渲染，
 
 ```java
 // 针对所有带有 @RestController 注解的控制器
@@ -701,7 +705,7 @@ public class FormController {
 
 ### 概述
 
-下表描述了支持的控制器方法参数。任何参数都不支持响应式类型。 JDK 8 的 java.util.Optional 支持作为方法参数，与具有 required 属性的注解（例如 @RequestParam、 @RequestHeader 等）结合使用，相当于 required=false。
+下表列出 Web MVC 内置解析器支持的控制器方法参数。Session 和 @SessionAttribute 需要启用 Web 会话支持，例如在配置类上添加 infra.session.config.EnableSession（@EnableSession）。 默认的参数解析器不支持以响应式类型接收请求输入。 对 @RequestParam、@RequestHeader 等按名称绑定的参数，可以将参数声明为 @Nullable，或在支持 required 的绑定注解上设置 required=false，以允许值缺失。 例如，对于 @RequestParam @Nullable Integer page，未提供 page 时参数值为 null，传入 page=abc 时仍会触发类型转换错误。 如果需要为 java.util.Optional<T> 参数定义绑定规则，可以注册自定义 Par
 
 ## @CookieValue
 
@@ -717,14 +721,6 @@ public void handle(@CookieValue("JSESSIONID") String cookie) { <1>
   //...
 }
 ```
-
-## Flash 属性
-
-> 原文：[`web/webmvc/mvc-controller/ann-methods/flash-attributes`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/web/webmvc/mvc-controller/ann-methods/flash-attributes.adoc)
-
-### 概述
-
-Flash 属性提供了一种让一个请求存储旨在供另一个请求使用的属性的方法。 这在重定向时最常需要——例如，Post-Redirect-Get 模式。 Flash 属性在重定向之前临时保存（通常在会话中），以便在重定向后的请求中可用，并立即被移除。 Web MVC 有两个主要的抽象来支持 Flash 属性。FlashMap 用于保存 Flash 属性， 而 FlashMapManager 用于存储、检索和管理 FlashMap 实例。 Flash 属性支持始终是“开启”的，不需要显式启用。但是，如果不使用，它绝不会导致创建 HTTP 会话。 在每个请求上，都有一个具有从上一个请求传递的属性（如果有）的“输入”FlashMap， 以及一个具有要为后续请求保存的属性的“输出”FlashMap。 这两个 FlashMap 实例都可以通过 WebUtils 中的静态方法在 Web MVC 的任何地方
 
 ## HttpEntity
 
@@ -856,20 +852,48 @@ public class FileUploadController {
 }
 ```
 
+## 重定向 Model
+
+> 原文：[`web/webmvc/mvc-controller/ann-methods/redirect-model`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/web/webmvc/mvc-controller/ann-methods/redirect-model.adoc)
+
+### 概述
+
+重定向 Model（infra.web.RedirectModel）用于将提示消息等临时数据从当前请求传给重定向后的请求，典型场景是 Post-Redirect-Get。 与 URL 中的重定向参数 不同， 重定向 Model 中的属性默认不会写入重定向 URL。 在发起重定向的控制器方法中声明 infra.web.RedirectModel 参数，并用 addAttribute 添加输出属性。 RedirectView 会将非空的输出模型交给已配置的 RedirectModelManager 保存。 使用 SessionRedirectModelManager 时，属性临时保存在 HTTP 会话中；如果没有要保存的属性，就不会为此创建会话。 目标请求匹配后，管理器取出并移除已保存的模型。对于带注解的控制器，框架在调用目标方法前将这些输入属性合并到普通 Model 中。 例如，提交订单后重
+
+```java
+import infra.web.RedirectModel;
+import infra.web.annotation.GET;
+import infra.web.annotation.POST;
+import infra.web.view.RedirectView;
+
+// 以下方法位于同一个 @Controller 中。
+@POST("/orders/{id}")
+public RedirectView save(RedirectModel redirectModel) {
+  // 保存订单，成功后再添加提示。
+  redirectModel.addAttribute("notice", "订单已保存");
+  RedirectView view = new RedirectView("/orders/{id}");
+  view.setHttp10Compatible(false);
+  return view;
+}
+
+@GET("/orders/{id}")
+public String show() {
+  return "orders/detail";
+}
+```
+
 ## 重定向属性
 
 > 原文：[`web/webmvc/mvc-controller/ann-methods/redirecting-passing-data`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/web/webmvc/mvc-controller/ann-methods/redirecting-passing-data.adoc)
 
 ### 概述
 
-默认情况下，所有模型属性都被视为在重定向 URL 中作为 URI 模板变量公开。 在剩余的属性中，原始类型或原始类型的集合或数组会自动附加为查询参数。 如果模型实例是专门为重定向准备的，那么将原始类型属性附加为查询参数可能是预期的结果。 但是，在带注解的控制器中，模型可能包含为渲染目的而添加的附加属性（例如，下拉字段值）。 为了避免此类属性出现在 URL 中的可能性，@RequestMapping 方法可以声明一个 RedirectAttributes 类型的参数，并使用它来指定要提供给 RedirectView 的确切属性。 如果方法进行重定向，则使用 RedirectAttributes 的内容。否则，使用模型的内容。 RequestMappingHandlerAdapter 提供了一个名为 ignoreDefaultModelOnRedirect 的标志， 您可以使用它来指示如果控制
+重定向时，先区分数据应该出现在目标 URL 中，还是只供目标请求临时使用： 声明 RedirectModel 参数不会阻止普通模型属性出现在 URL 中。 如果不希望把视图模型中的属性自动附加为查询参数，可以显式返回 RedirectView 并调用 setExposeModelAttributes(false)。这不会关闭 URI 模板展开，也不会移除目标 URL 中显式指定的查询参数。 不要将不应公开的数据用于构造重定向 URL。 以下示例使用当前请求的 +{id}+ 展开目标路径，并在目标 URL 中显式携带 tab 查询参数：
 
 ```java
-@POST("/files/{path}")
-public String upload(...) {
-  // ...
-  return "redirect:files/{path}";
-}
+RedirectView view = new RedirectView("/orders/{id}?tab=summary");
+view.setExposeModelAttributes(false);
+return view;
 ```
 
 ## @RequestAttribute
@@ -1036,7 +1060,7 @@ public void populateModel(@RequestParam String number, Model model) {
 
 #### @RequestMapping
 
-可以使用 @RequestMapping 元注解将请求映射到控制器方法。它有各种属性来匹配 URL、HTTP 方法、请求参数、请求头和媒体类型。 您可以在类级别使用它来表达共享映射，或者在方法级别使用它来缩小到特定的端点映射。 还有特定于 HTTP 方法的变体 @RequestMapping： 这些快捷方式是 自定义注解， 之所以提供它们，是因为可以说，大多数控制器方法应该映射到特定的 HTTP 方法，而不是使用默认情况下匹配所有 HTTP 方法的 @RequestMapping。在类级别仍然需要 @RequestMapping 来表达共享映射。 NOTE: @RequestMapping 不能与在同一元素（类、接口或方法）上声明的其他 @RequestMapping 注解一起使用。如果在同一个元素上检测到多个 @RequestMapping 注解，将记录一条警告，并且只使用第一个映射。 
+使用 @RequestMapping 将请求映射到控制器方法。映射可以按 URL 路径、HTTP 方法、请求参数、请求头、媒体类型和 API 版本匹配。 可以在类级别声明共享条件，再在方法级别声明具体端点。value 和 path 互为别名，都可以指定一个或多个路径模式。 以下 组合注解 是指定 HTTP 方法的快捷方式： 建议为控制器端点显式指定 HTTP 方法。不设置 method 时，该条件通常不限制 HTTP 方法； 普通 OPTIONS 请求由框架 默认处理。 NOTE: @RequestMapping 不能与在同一元素（类、接口或方法）上声明的其他 @RequestMapping 注解一起使用。如果在同一个元素上检测到多个 @RequestMapping 注解，将记录一条警告，并且只使用第一个映射。 这也适用于诸如 @GET、@POST 等组合的 @RequestMapping
 
 ```java
 @RestController
@@ -1058,7 +1082,7 @@ class PersonController {
 
 #### URI 匹配
 
-@RequestMapping 方法可以使用 URL patterns 进行映射。有两种选择： 这种解决方案专为 Web 使用而设计，有效处理编码和路径参数，并有效匹配。 配置中选择类路径、文件系统和其他位置的资源。它效率较低，且字符串路径输入在有效处理编码和其他 URL 问题方面是一个挑战。 PathPattern 是 Web 应用程序的推荐解决方案。从版本 5.0 开始在 Web MVC 是唯一的选择。 请参阅 MVC 配置 了解路径匹配选项的自定义。 PathPattern 支持与 AntPathMatcher 相同的模式语法。此外，它还支持捕获模式，例如 +{*today}+， 用于匹配路径末尾的 0 个或多个路径段。PathPattern 还限制了 +**+ 的使用，仅允许在模式的末尾匹配多个路径段。 这消除了在选择给定请求的最佳匹配模式时的许多歧义情况。有关完整模式语法， 请参
+Web MVC 使用预先解析的 PathPattern 匹配请求路径。请求路径表示为 PathContainer，可以逐段处理 URL 编码和路径参数。 有关匹配选项，请参阅 MVC 配置。 ++ 和 +{name}+ 都匹配零个或多个路径段，后者还会将匹配到的路径捕获为变量。 每个模式只能包含一个这样的多段匹配元素，且只能放在模式开头或末尾。 完整语法参见 PathPattern。 路径模式示例： 捕获的 URI 变量可以使用 @PathVariable 访问。例如：
 
 ```java
 @GET("/owners/{ownerId}/pets/{petId}")
@@ -1077,7 +1101,7 @@ public Pet findPet(@PathVariable Long ownerId, @PathVariable Long petId) {
 
 #### 请求参数和请求头
 
-您可以根据请求参数条件来缩小请求映射的范围。您可以测试请求参数的存在（myParam）、 不存在（!myParam）或特定值（myParam=myValue）。以下示例展示了如何测试特定值：
+可以根据请求参数条件缩小映射范围。支持检查参数是否存在（myParam）、是否不存在（!myParam）、 是否等于指定值（myParam=myValue）或是否不等于指定值（myParam!=myValue）。声明多个条件时，必须同时满足。 以下示例检查参数值：
 
 #### 显式注册
 
@@ -1136,6 +1160,17 @@ Web MVC 提供共享算法的模式用于请求处理，而实际工作由可配
 
 如果在请求映射期间发生异常或从请求处理程序（例如 @Controller）抛出异常，DispatcherHandler 会委托给 HandlerExceptionHandler bean 链来解决异常并提供替代处理，通常是错误响应。 下表列出了可用的 HandlerExceptionHandler 实现：
 
+#### @ResponseStatus 与错误说明
+
+@ResponseStatus 可以声明在处理器方法、控制器类或异常类上。它的 code （也可以通过别名 value 指定）用于设置 HTTP 响应状态。控制器类上的注解会应用于该控制器的请求映射方法；异常类上的注解则由 ResponseStatusExceptionHandler 在异常处理链中解析。 仅设置状态码时，处理器方法的返回值仍会按照正常的返回值处理流程写入响应：
+
+```java
+@ResponseStatus(HttpStatus.CREATED)
+public User create(@RequestBody User user) {
+  return userService.create(user);
+}
+```
+
 ## 过滤器
 
 > 原文：[`web/webmvc/mvc-core/filters`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/web/webmvc/mvc-core/filters.adoc)
@@ -1170,7 +1205,7 @@ public class FilterConfiguration {
 
 #### 执行顺序与前后置处理
 
-过滤器通过 doFilter(HttpContext, FilterChain) 处理请求。通常只调用一次 chain.doFilter(http)；重复调用会再次执行下游链，而不是从上次结束的位置继续。 链的终点进入处理器查找、执行及返回值处理。 例如，两个过滤器的顺序值分别为 0 和 10，正常同步执行时顺序如下： 如果前面的过滤器短路，后续过滤器和处理器不会执行。 使用 try/finally 可以在下游调用返回或抛出异常时释放过滤器自己持有的资源：
+过滤器通过 doFilter(HttpContext, FilterChain) 处理请求。通常只调用一次 chain.doFilter(http)；重复调用会再次执行下游链，而不是从上次结束的位置继续。 链的终点进入处理器查找、执行及返回值处理。 调用 HttpContext.forward(path) 则直接重新查找目标处理器，不会重新执行过滤器链。 参见 内部转发。 例如，两个过滤器的顺序值分别为 0 和 10，正常同步执行时顺序如下： 如果前面的过滤器短路，后续过滤器和处理器不会执行。 使用 try/finally 可以在下游调用返回或抛出异常时释放过滤器自己持有的资源：
 
 ```java
 @Override
@@ -1216,7 +1251,7 @@ send 将结果原样传给返回值处理器，不会自动包装为 HttpEntity�
 
 ### 概述
 
-Infra 架构的大部分都支持国际化，Infra Web MVC 框架也是如此。DispatcherHandler 让您可以使用客户端的区域设置自动解析消息。 这是通过 LocaleResolver 对象完成的。 请求语言偏好和应用最终使用的区域设置是两个不同的概念： HttpContext.getLocale() 按质量权重降序选择具体语言，忽略通配符范围和 q=0 的范围。 请求头缺失、空白或不含可接受的具体语言时返回 null；非法请求头仍会抛出解析异常。 该方法不读取 Cookie、Session 或 LocaleResolver，也不回退到 JVM 默认语言。 它不保证应用支持返回的语言；需要所有语言候选和权重时，使用 request.requestHeaders().getAcceptLanguage()。 应用代码通常应使用 WebUtils.resolveLocale(re
+Infra 架构的大部分都支持国际化，Infra Web MVC 框架也是如此。DispatcherHandler 让您可以使用客户端的区域设置自动解析消息。 这是通过 LocaleResolver 对象完成的。 请求语言偏好和应用最终使用的区域设置是两个不同的概念： HttpContext.getPreferredLocale() 按质量权重降序选择具体语言，忽略通配符范围和 q=0 的范围。 请求头缺失、空白或不含可接受的具体语言时返回 null；非法请求头仍会抛出解析异常。 该方法不读取 Cookie、Session 或 LocaleResolver，也不回退到 JVM 默认语言。 它不保证应用支持返回的语言；需要所有语言候选和权重时，使用 request.requestHeaders().getAcceptLanguage()。 应用代码通常应使用 WebUtils.resolve
 
 #### Header 解析器
 
@@ -1249,7 +1284,7 @@ public LocaleResolver mvcLocaleResolver() {
 
 #### Locale 拦截器
 
-您可以通过将 LocaleChangeInterceptor 添加到 HandlerMapping 定义之一来启用区域设置更改。 它检测请求中的参数并相应地更改区域设置，在调度程序的应用程序上下文中的 LocaleResolver 上调用 setLocale 方法。 也可以通过拦截器的 setLocaleResolver(...) 显式指定解析器。 Cookie 和 Session 策略支持保存语言选择，而 AcceptHeaderLocaleResolver 不支持动态修改，调用其 setLocale 会抛出 UnsupportedOperationException。拦截器更改的是策略中的选择，不是 HttpContext.getLocale() 表示的请求头偏好。 下一个示例显示，对包含名为 siteLanguage 参数的所有 *.view 资源的调用现在会更改区域设置。 因此，例
+您可以通过将 LocaleChangeInterceptor 添加到 HandlerMapping 定义之一来启用区域设置更改。 它检测请求中的参数并相应地更改区域设置，在调度程序的应用程序上下文中的 LocaleResolver 上调用 setLocale 方法。 也可以通过拦截器的 setLocaleResolver(...) 显式指定解析器。 Cookie 和 Session 策略支持保存语言选择，而 AcceptHeaderLocaleResolver 不支持动态修改，调用其 setLocale 会抛出 UnsupportedOperationException。拦截器更改的是策略中的选择，不是 HttpContext.getPreferredLocale() 表示的请求头偏好。 下一个示例显示，对包含名为 siteLanguage 参数的所有 *.view 资源的调用现在会更改区
 
 ## 日志
 
@@ -1316,7 +1351,7 @@ public ServerBootstrapCustomizer serverBootstrapCustomizer(){
 
 ### 概述
 
-DispatcherHandler 处理请求如下： ApplicationContext 中声明的 HandlerExceptionHandler bean 用于解决请求处理期间抛出的异常。 这些异常解析器允许自定义解决异常的逻辑。有关更多详细信息，请参阅 异常。 对于 HTTP 缓存支持，处理程序可以使用 HttpContext 的 checkNotModified 方法， 以及 控制器的 HTTP 缓存 中描述的带注解控制器的更多选项。
+DispatcherHandler 按以下顺序处理请求： HandlerExceptionHandler 用于将处理请求时的异常转换为错误响应或视图。响应提交后不能再生成替代响应。 参见 异常，以及 异步异常处理。 对于 HTTP 缓存支持，处理程序可以使用 HttpContext 的 checkNotModified 方法， 以及 控制器的 HTTP 缓存 中描述的带注解控制器的更多选项。
 
 ## 特殊 Bean 类型
 
@@ -1324,7 +1359,7 @@ DispatcherHandler 处理请求如下： ApplicationContext 中声明的 HandlerE
 
 ### 概述
 
-DispatcherHandler 委托给特殊的 bean 来处理请求并渲染适当的响应。 这里的 "特殊 beans" 指的是由基础设施管理的实现框架合同的 Object 实例。 这些通常具有内置的合同，但您可以自定义它们的属性并扩展或替换它们。 以下表格列出了 DispatcherHandler 检测到的特殊 bean： 一起用于前后处理。映射基于某些标准，其详细信息因 HandlerMapping 实现而异。 两个主要的 HandlerMapping 实现是 RequestMappingHandlerMapping （支持 @RequestMapping 注解的方法）和 SimpleUrlHandlerMapping （将 URI 路径模式的显式注册保持为处理程序）。 例如，调用带有注解的控制器需要解析注解。HandlerAdapter 的主要目的是保护 DispatcherHandl
+MVC 将请求映射、处理器调用和响应生成委托给不同的基础设施 Bean。 有些 Bean 由 DispatcherHandler 直接查找，有些由 MVC 配置装配后交给映射器、适配器或返回值处理器使用。
 
 ## 视图解析
 
@@ -1340,7 +1375,7 @@ Web MVC 定义了 ViewResolver 和 View 接口，让您可以在浏览器中渲�
 
 ### 概述
 
-数据绑定将字符串参数绑定到对象图，并在此过程中进行类型转换。 这是框架用于应用配置的核心机制之一。在 Web 应用中，它让应用能够通过具有丰富类型的对象 访问查询参数和表单数据，而不必直接操作字符串值的映射。 有关构造函数绑定、setter 绑定、属性名称语法和类型转换等机制的详细介绍， 请参阅核心技术部分的 数据绑定。 对于注解控制器，数据绑定应用于 @ModelAttribute 方法参数。 对于函数式端点，使用 ServerRequest 的 bind 方法。 TIP: 对于采用注解控制器的浏览器应用，可以使用 @ModelAttribute 方法 初始化供视图渲染使用的其他模型属性。 每个请求使用独立的 WebDataBinder 实例。对于注解控制器，可以通过控制器内的 @InitBinder 方法自定义该实例， 也可以通过 Controller Advice 跨控制器自定义。 
+数据绑定将字符串参数绑定到对象图，并在此过程中进行类型转换。 这是框架用于应用配置的核心机制之一。在 Web 应用中，它让应用能够通过具有丰富类型的对象 访问查询参数和表单数据，而不必直接操作字符串值的映射。 有关构造函数绑定、setter 绑定、属性名称语法和类型转换等机制的详细介绍， 请参阅核心技术部分的 数据绑定。 对于注解控制器，数据绑定应用于 @ModelAttribute 方法参数。 对于函数式端点，使用 ServerRequest 的 bind 方法。 TIP: 对于采用注解控制器的浏览器应用，可以使用 @ModelAttribute 方法 初始化供视图渲染使用的其他模型属性。 框架按绑定目标创建 WebDataBinder，不会在不同请求之间共享实例。对于注解控制器，可以通过控制器内的 @InitBinder 方法自定义该实例， 也可以通过 Controller Advic
 
 ## HTTP/2
 

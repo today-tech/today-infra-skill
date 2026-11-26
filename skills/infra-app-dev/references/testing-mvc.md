@@ -28,7 +28,7 @@ MockMvc 服务端配置、请求执行与断言、WebTestClient。
 
 ### 概述
 
-Web MVC Test 框架，也被称为 MockMvc，为测试 Infra MVC 应用程序提供支持。它执行完整的 Web MVC 请求处理，但是通过 mock 请求和响应对象，而不是通过运行中的服务器。 MockMvc 可以单独用于执行请求和验证响应。它也可以通过 WebTestClient 使用，其中 MockMvc 作为服务器插入以处理请求。WebTestClient 的优势在于可以选择使用更高级别的对象而不是原始数据，以及能够切换到针对实时服务器的完整端到端 HTTP 测试并使用相同的测试 API。
+Web MVC Test 框架，也被称为 MockMvc，为测试 Infra MVC 应用程序提供支持。它执行完整的 Web MVC 请求处理，但是通过 mock 请求和响应对象，而不是通过运行中的服务器。 可以直接使用 MockMvc 发起请求并验证响应，也可以使用 MockMvcTester 编写 AssertJ 断言。 WebTestClient 也可以把 MockMvc 用作请求处理后端； 如果需要针对运行中的服务器进行端到端 HTTP 测试，可以切换后端并保留同一套 WebTestClient API。
 
 ## 异步请求
 
@@ -122,6 +122,41 @@ class MyWebTests {
 
   // ...
 
+}
+```
+
+#### 使用 MockMvcTester 编写 AssertJ 断言
+
+MockMvcTester 使用同一套 MockMvc 请求处理机制，提供 AssertJ 风格的断言。以下独立测试验证控制器的响应状态和文本：
+
+```java
+import org.junit.jupiter.api.Test;
+
+import infra.test.web.mock.assertj.MockMvcTester;
+import infra.web.annotation.GET;
+import infra.web.annotation.RestController;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class GreetingTests {
+
+  private final MockMvcTester mvc = MockMvcTester.of(new GreetingController());
+
+  @Test
+  void greeting() {
+    assertThat(mvc.get().uri("/greet"))
+        .hasStatusOk()
+        .hasBodyTextEqualTo("Hello");
+  }
+
+  @RestController
+  static class GreetingController {
+
+    @GET("/greet")
+    public String greet() {
+      return "Hello";
+    }
+  }
 }
 ```
 

@@ -4,21 +4,24 @@
 > 只保留 `infra-docs` 未覆盖的内容（README、CONTRIBUTING、infra-samples 等）；
 > 文档正文的权威来源仍是 `infra-docs`，本文件用于补齐“项目怎么跑起来”这类信息。
 
-条目 9 个（跳过：已在 infra-docs 覆盖 78、输出/占位 0、无代码 0）。
+条目 9 个（跳过：已在 infra-docs 覆盖 70、输出/占位 0、无代码 0）。
 
 ## `CONTRIBUTING.md`
 
 ### 克隆仓库并构建
 
-克隆你的Fork仓库并使用Gradle Wrapper构建项目。构建工具链使用JDK 25，发布制品兼容Java 17及以上版本。
+克隆你的 Fork 仓库，使用 Gradle Wrapper 构建项目。项目使用 JDK 25 构建，兼容 Java 17+。
 
 ```bash
+# 1. 克隆你的Fork仓库
 git clone https://github.com/YOUR_USERNAME/today-infrastructure.git
 cd today-infrastructure
-```
 
-```bash
+# 2. 使用项目包装器（推荐）
 ./gradlew build
+
+# 3. 导入IDE
+# 项目已包含Gradle配置，可直接用IntelliJ IDEA或Eclipse导入。
 ```
 
 ## `README.md`

@@ -80,7 +80,7 @@ String message = (String) exp.getValue();
 
 ##### 类型转换
 
-默认情况下，SpEL 使用 Infra core 中可用的转换服务 (infra.core.conversion.ConversionService)。此转换服务附带了许多用于常见转换的内置转换器， 但也完全可扩展，以便你可以在类型之间添加自定义转换。此外，它还具有泛型感知能力。 这意味着，当你在表达式中使用泛型类型时，SpEL 会尝试转换以保持其遇到的任何对象的类型正确性。 这在实践中意味着什么？假设使用 setValue() 进行赋值来设置 List 属性。 该属性的类型实际上是 List<Boolean>。SpEL 认识到列表的元素在放入之前需要转换为 Boolean。 下例展示了如何做到这一点。
+默认情况下，SpEL 使用 Infra core 中可用的转换服务 (infra.core.conversion.ConversionService)。此转换服务附带了许多用于常见转换的内置转换器， 但也完全可扩展，以便你可以在类型之间添加自定义转换。此外，它还具有泛型感知能力。 这意味着，当你在表达式中使用泛型类型时，SpEL 会尝试转换以保持其遇到的任何对象的类型正确性。 NOTE: SimpleEvaluationContext 默认不支持反射类型转换，可以通过构建器的 withConverter(...) 增加转换器。 参见 <<expressions-evaluation-context-security,安全注意事项>>。 这在实践中意味着什么？假设使用 setValue() 进行赋值来设置 List 属性。 该属性的类型实际上是 List<Boolean>。SpEL 认识到列
 
 ```java
 class Simple {

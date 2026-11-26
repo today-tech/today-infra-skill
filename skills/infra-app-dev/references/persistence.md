@@ -4,7 +4,7 @@
 
 实体管理、映射、分页、审计、批量与原生 SQL。
 
-覆盖文档：14 页（含示例 12 页）。原文位于仓库 `infra-docs/`，下方每个页面标注了路径。
+覆盖文档：15 页（含示例 13 页）。原文位于仓库 `infra-docs/`，下方每个页面标注了路径。
 
 ## 页面索引
 
@@ -17,6 +17,7 @@
 - **实体映射** —— `data-access/persistence/mapping`
 - **分页** —— `data-access/persistence/paging`
 - **查询条件与示例查询 (QueryCondition)** —— `data-access/persistence/query-by-example`
+- **滚动查询** —— `data-access/persistence/scrolling`
 - **SQL 构建与数据库平台** —— `data-access/persistence/sql`
 - **属性更新策略** —— `data-access/persistence/update-strategy`
 - **乐观锁** —— `data-access/persistence/version`
@@ -29,7 +30,7 @@
 
 ### 概述
 
-infra-persistence 在 JDBC 抽象之上提供了一个轻量级的实体持久化层。 它不依赖 JPA/Hibernate，而是通过注解与运行时元数据把 Java 对象映射到关系表，并由 EntityManager 统一负责增删改查、示例查询、分页、乐观锁与生命周期事件。 本部分按层次拆分介绍持久化框架的各个方面：
+infra-persistence 在 JDBC 抽象之上提供了一个轻量级的实体持久化层。 它不依赖 JPA/Hibernate，也不提供 JPA 的实体上下文、一级缓存或脏检查；框架通过注解与运行时元数据 把 Java 对象映射到关系表，并由 EntityManager 负责 SQL 写入、条件查询、分页、主键生成、乐观锁与生命周期事件。 它更适合希望直接控制 SQL 形状、事务边界和实体映射，同时又不想重复编写基础 JDBC CRUD 代码的应用。 复杂查询可以直接实现 QueryStatement / QueryCondition，而不是被限制在示例查询的表达能力内。 本部分按层次拆分介绍持久化框架的各个方面：
 
 ## 实体审计
 
@@ -78,18 +79,18 @@ AuditorAware 可以返回完整用户对象，不同字段通过注解参数选�
 
 ### 概述
 
-批量写入通过 PersistenceProperties.maxBatchRecords 控制：当累积的记录数达到该值时， 会隐式执行一次 executeBatch()；为 0 时不自动执行，由显式的刷新触发。 BatchExecutionListener 会在每个批次执行前后收到通知，BatchExecution 暴露了 SQL 语句 statement、实体元数据 entityMetadata、实际插入属性列表 properties、是否处理自增主键 autoGenerateId 以及当前批次收集到的实体集合 entities， 并通过 getAffectedRows() 返回该批次累计受影响的行数。监听器可通过 @Order / Ordered 排序。 批量插入的准确影响行数取决于 JDBC 驱动。所有计数已知时按实际影响行数累加； 任一计数为 Statement.SUCCESSNO
+批量写入通过 persistence.max-batch-records 控制：每个具有相同实体类型和有序写入列的 JDBC PreparedStatement 批次达到该值时，会隐式执行一次 executeBatch()。它不是整个操作的总缓存上限， 也不是事务提交阈值；为 0 时不做中途刷新，输入消费结束后仍会执行所有剩余批次。 BatchExecutionListener 会在每次批次执行前后收到通知。BatchExecution 的 getOperation() 区分插入和更新， getStatement()、getEntityMetadata()、getProperties()、isAutoGenerateId() 和 getEntities() 提供本次执行的上下文。 getAffectedRows() 是同一个 PreparedStatement 已累计的影响行数，不只是本次
 
 #### 主键生成与属性选择
 
-批量插入为每个实体调用 onPrePersist，随后生成尚未赋值的应用主键，再绑定参数并加入 JDBC 批次。 自定义 IdGenerator 每个实体调用一次，不会自动合并成一次远程 ID 服务请求。 UUID 或自定义生成型主键始终包含在 INSERT 中；数据库自增主键在批次执行后逐实体回填， 返回主键不足时操作失败并回滚，不发送实体插入成功回调。 每个实体完成前置回调与主键生成后，再依据当前属性值和更新策略选择 INSERT 列。 实体类型和有序属性列表一致的记录复用 PreparedStatement； 仅在首次创建对应批次时生成 SQL。 不同列集合分别进入对应批次，不会因首个实体的空值状态而遗漏后续实体的属性。 批量与单条路径使用相同的注解优先规则：声明 @GeneratedId 时，数据库自增策略请求 JDBC 主键， UUID 和自定义生成器不请求；未声明生成策略的模型
+批量插入为每个实体调用 onPrePersist，随后生成尚未赋值的应用主键，再绑定参数并加入 JDBC 批次。 需要生成主键的实体会分别调用自定义 IdGenerator，不会自动合并成一次远程 ID 服务请求。 UUID 或自定义生成型主键始终包含在 INSERT 中；数据库自增主键在批次执行后逐实体回填， 返回主键不足时操作失败并回滚，不发送实体插入成功回调。 每个实体完成前置回调与主键生成后，再依据当前属性值和更新策略选择 INSERT 列。 实体类型和有序属性列表一致的记录复用 PreparedStatement； 仅在首次创建对应批次时生成 SQL。 不同列集合分别进入对应批次，不会因首个实体的空值状态而遗漏后续实体的属性。 批量与单条路径使用相同的注解优先规则：声明 @GeneratedId 时，数据库自增策略请求 JDBC 主键， UUID 和自定义生成器不请求；未声明生成
 
 ```java
 class LoggingBatchListener implements BatchExecutionListener {
 
   @Override
   public void preProcessing(BatchExecution execution, boolean implicitExecution) {
-    // execution.statement, execution.entities
+    // execution.getStatement(), execution.getEntities()
   }
 
   @Override
@@ -135,7 +136,11 @@ persistence:
 
 #### 自定义
 
-可以通过实现以下接口来定制自动配置的组件，它们会被自动收集并应用：
+可以通过实现以下接口来定制自动配置的组件，它们会被自动收集并应用： 还可以直接注册以下扩展点：
+
+#### 手动创建
+
+不使用容器自动配置时，最小配置是一个 RepositoryManager：
 
 ## EntityManager
 
@@ -143,7 +148,7 @@ persistence:
 
 ### 概述
 
-EntityManager 是持久化的中心 API，所有方法在数据访问失败时抛出 DataAccessException， 实体元数据非法时抛出 IllegalEntityException。
+EntityManager 是持久化的中心 API。数据访问失败通常转换为 DataAccessException， 实体元数据、主键或参数不符合要求时可能抛出 IllegalEntityException、 InvalidDataAccessApiUsageException 或 IllegalArgumentException。应用回调抛出的运行时异常通常保留原类型。 单条操作不会自动开启或提交事务；批量写入通过 RepositoryManager 请求事务，详见 <<persistence-transaction>>。
 
 #### 持久化
 
@@ -170,7 +175,7 @@ entityManager.updateById(user, 10L);
 entityManager.updateById(user, PropertyUpdateStrategy.noneNull());
 entityManager.updateById(user, 10L, PropertyUpdateStrategy.noneNull());
 
-// 新实体插入、已存在则更新
+// 按新实体判定选择插入或更新，不查询数据库
 entityManager.saveOrUpdate(user);
 entityManager.saveOrUpdate(user, PropertyUpdateStrategy.noneNull());
 ```
@@ -179,7 +184,7 @@ entityManager.saveOrUpdate(user, PropertyUpdateStrategy.noneNull());
 
 #### 查询
 
-查询方法接受一个 QueryCondition（描述条件部分）或 QueryStatement（渲染 SQL 并绑定参数）； find(example) 这类重载只是其中"以对象为探针"的输入形式，详见 查询条件与示例查询。
+find、findFirst、findUnique 和 iterate 可直接接收 QueryStatement；count、page、slice 和 scroll 可直接接收 QueryCondition。两组方法也可通过各自的 Object example 重载转换示例对象，详见 查询条件与示例查询。
 
 ## 生命周期事件
 
@@ -187,7 +192,7 @@ entityManager.saveOrUpdate(user, PropertyUpdateStrategy.noneNull());
 
 ### 概述
 
-监听器通过泛型参数声明所关注的实体类型（无法解析泛型时监听所有实体），由 EntityManager 在操作期间 也可手动注册到 EntityEventRegistry。 持久化 / 更新的前置回调接收并返回 PropertyUpdateStrategy，决定哪些属性参与写入。 后置回调接收 SQL 参数顺序下的不可变实际属性列表；失败回调也接收该列表， 但前置回调、主键生成、版本递增或属性选择过程中失败时传入 null，不会暴露选择到一半的列表。 选择已完成但没有写入属性时，失败回调可以收到空列表。 失败监听器抛出的异常作为 suppressed exception 附加到原始异常，不替换原始失败。
+监听器通过泛型参数声明所关注的实体类型（无法解析泛型时监听所有实体），由 EntityManager 在操作期间 也可手动注册到 EntityEventRegistry。 持久化 / 更新的前置回调接收并返回 PropertyUpdateStrategy，决定哪些属性参与写入。 后置回调接收 SQL 参数顺序下的不可变实际属性列表；失败回调也接收该列表， 但前置回调、主键生成、版本递增或属性选择过程中失败时传入 null，不会暴露选择到一半的列表。 选择已完成但没有写入属性时，失败回调可以收到空列表。 失败回调接收 EntityFailureContext，可读取 getMetadata()、getPhase()、getProperties()、getId() 和 getException()。 阶段区分前置处理、SQL 准备、执行和后置处理，不代表事务结果。失败监听器抛出的异常会作为 s
 
 #### 主键生成与回调顺序
 
@@ -275,7 +280,7 @@ class Order {
 
 ##### 分布式 ID
 
-IdGenerator 可以接入本地雪花算法、UUID v7、ULID、数据库号段、Redis 递增或远程 ID 服务。 当前内置策略为 IDENTITY 与 UUID（固定 v7），其他算法通过自定义生成器接入。 多节点唯一性、节点编号、时钟回拨处理和号段分配由生成器及其依赖服务负责。 对雪花或号段等有状态生成器，建议注册为线程安全的单例 Bean，通过名称引用：
+IdGenerator 可以接入本地雪花算法、UUID v7、ULID、数据库号段、Redis 递增或远程 ID 服务。 当前内置策略为 IDENTITY 与 UUID（默认 v7），其他算法通过自定义生成器接入。 多节点唯一性、节点编号、时钟回拨处理和号段分配由生成器及其依赖服务负责。 对雪花或号段等有状态生成器，建议注册为线程安全的单例 Bean，通过名称引用：
 
 ##### Meta 注解与属性别名
 
@@ -295,7 +300,7 @@ EntityMetadataFactory#getEntityMetadata(Class) 返回并缓存 EntityMetadata，
 
 ### 概述
 
-Pageable 描述分页参数，Page 承载分页结果：
+Pageable 描述基于页码和 offset 的分页参数，Page 承载包含总数的分页结果：
 
 ```java
 Pageable pageable = Pageable.of(2, 10);   // 页码从 1 开始
@@ -308,13 +313,27 @@ int totalPages = page.getTotalPages();
 boolean hasNext = page.hasNextPage();
 ```
 
+#### Slice：不统计总数
+
+如果只需要知道是否有下一页，可以使用 slice。框架会读取 pageSize + 1 行，丢弃多读的一行， 以计算 hasNext，因此不会额外执行 count 查询：
+
+```java
+Slice<User> slice = entityManager.slice(User.class, userQuery, Pageable.of(1, 20));
+for (User user : slice.rows()) {
+  process(user);
+}
+if (slice.hasNext()) {
+  Pageable next = Pageable.of(slice.pageNumber() + 1, slice.pageSize());
+}
+```
+
 ## 查询条件与示例查询 (QueryCondition)
 
 > 原文：[`data-access/persistence/query-by-example`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/data-access/persistence/query-by-example.adoc)
 
 ### 概述
 
-面向用户的通用查询抽象是 QueryCondition：它描述"要查什么条件"（collectRestrictions 收集条件、 setParameter 绑定参数、resolveOrderByClause 解析排序）。具体条件如何表达由实现决定， EntityManager.find(...) / count(...) / page(...) 等均接受 QueryCondition。 示例查询（Query by Example，QBE）是 QueryCondition 的一种：以对象作为"探针（probe）"， 把它的非空属性转换为 WHERE 条件，并可通过注解在属性上精细描述。 NOTE: 示例查询是 QueryCondition 的一种，探针对象即 example。
+面向用户的通用查询抽象是 QueryCondition：它描述“要查什么条件”（collectRestrictions 收集条件、 setParameter 绑定参数、resolveOrderByClause 解析排序）。具体条件如何表达由实现决定， count、page、slice 和 scroll 可直接使用 QueryCondition；find 等查询方法使用 QueryStatement。 默认示例查询实现同时支持两种接口。 示例查询（Query by Example，QBE）是 QueryCondition 的一种：以对象作为“探针（probe）”， 把它的非空属性转换为 WHERE 条件，并可通过注解在属性上精细描述。 空值通常不生成条件（@WhereIsNull 除外），默认等值策略也忽略空白字符串。需要表达“未设置”时尽量使用包装类型： 基本类型默认值（如 0、false
 
 #### 条件注解
 
@@ -350,7 +369,7 @@ List<User> users = entityManager.find(User.class, query);
 
 #### 多对多子查询 (@Subquery)
 
-@Subquery 用于"通过连接表查询被引用实体"的多对多场景，只能标注在 @EntityRef 查询类的字段上。它生成：
+@Subquery 用于通过连接表查询被引用实体。应将它用在 @EntityRef 示例类型的字段上；没有引用元数据时， 子查询策略不会生成条件，后续策略仍可能生成其他谓词。默认生成：
 
 ```sql
 targetColumn IN (SELECT select FROM junctionTable WHERE fieldColumn = ?)
@@ -358,7 +377,69 @@ targetColumn IN (SELECT select FROM junctionTable WHERE fieldColumn = ?)
 
 #### ORDER BY 解析优先级
 
-示例查询的 ORDER BY 按以下优先级解析，命中较早的来源即生效： 主键（@Id）属性与普通属性一样会被扫描，因此同样可以用 @OrderBy 参与排序。例如：
+示例查询的 ORDER BY 按以下优先级解析，跳过空规格（OrderSpec.empty()）；OrderSpecSource 不能返回 null： 主键（@Id）属性与普通属性一样会被扫描，因此同样可以用 @OrderBy 参与排序。例如：
+
+#### 自定义查询工厂
+
+EntityQueryFactories 会按以下顺序选择查询实现：应用显式注册的 EntityQueryFactory、通过策略机制发现的工厂、内置的排序 / Map 工厂，最后才是默认示例查询工厂。 工厂必须实现 createQuery 和 createCondition 两个方法；不支持的示例或用法返回 null，让下一个工厂处理。
+
+## 滚动查询
+
+> 原文：[`data-access/persistence/scrolling`](https://github.com/TAKETODAY/today-infrastructure/blob/master/infra-docs/modules/ROOT/pages/data-access/persistence/scrolling.adoc)
+
+### 概述
+
+scroll 使用 keyset（也称 seek）分页返回一个个窗口，不依赖越来越大的 OFFSET。 它适合导出、后台任务和需要遍历大量记录的接口。每个窗口只多读取一行来判断是否还有下一窗口， 不会执行总数查询。
+
+#### 基本用法
+
+滚动查询必须能够解析出结构化排序键。下面通过 OrderSpecSource 提供排序，通过 ScrollPageable 单独传递游标。 假设 User 映射了非空的 createdAt 和 id，其中数据库列 created_at 对应属性 createdAt：
+
+```java
+@EntityRef(User.class)
+class UserQuery implements OrderSpecSource {
+
+  @Like
+  String name;
+
+  @Override
+  public OrderSpec orderSpec() {
+    return OrderSpec.desc("created_at"); // 未列出的主键 id 自动追加为 DESC
+  }
+}
+
+UserQuery query = new UserQuery();
+query.name = "Jo";
+ScrollPageable request = ScrollPageable.of(100);
+
+Scroll<User> window = entityManager.scroll(User.class, query, request);
+while (true) {
+  ScrollPosition next = window.nextPosition();
+  for (User user : window) {
+    process(user);
+  }
+  if (next == null) {
+    break;
+  }
+  window = entityManager.scroll(User.class, query, request.withPosition(next));
+}
+```
+
+#### 在 HTTP 请求间继续查询
+
+将 ScrollPosition 留在持久化层与应用之间。下面的 POST /users/scroll 用 name 精确筛选， 由服务端固定按 created_at DESC, id DESC 排序。客户端调用时只需要遵守以下约定： 例如，收到 {"items":["9007199254740994","9007199254740993"],"nextCursor":{"name":"Jo","createdAt":"2026-01-01T00:00:00.123456789Z","id":"9007199254740993"}} 后，续查请求为：
+
+```json
+{
+  "name": "Jo",
+  "limit": 2,
+  "cursor": {"name":"Jo","createdAt":"2026-01-01T00:00:00.123456789Z","id":"9007199254740993"}
+}
+```
+
+#### 由示例对象提供游标
+
+另一种写法是让示例对象实现 ScrollPositionSource，用类型化属性构建位置。 以下按 age ASC, id ASC 查询，两个游标字段要么同时为空，要么同时提供：
 
 ## SQL 构建与数据库平台
 
@@ -446,7 +527,7 @@ entityManager.update(user, strategy);
 
 ### 概述
 
-在版本属性上标注 @Version 即可启用乐观锁。更新时框架会校验版本并自动递进；删除同样受版本约束。 每个实体只允许一个版本属性，否则抛出 IllegalEntityException。 开箱支持的类型：int/Integer、long/Long、short/Short，以及 Instant、LocalDateTime、ZonedDateTime、OffsetDateTime。数值类型递增，时间类型取当前时间。
+在版本属性上标注 @Version 即可启用乐观锁。更新时框架将新版本写入 SET，并将旧版本加入 WHERE， 影响行数不等于 1 时抛出 OptimisticLockingFailureException。插入不会自动初始化版本；调用方应为新实体设置初始值， 更新时实体必须携带非空的旧版本。 每个实体只允许一个版本属性，否则抛出 IllegalEntityException。 开箱支持的类型：int/Integer、long/Long、short/Short，以及 Instant、LocalDateTime、ZonedDateTime、OffsetDateTime。数值类型递增，时间类型取当前时间。
 
 ```java
 @Table(name = "t_user")
@@ -456,7 +537,7 @@ class User {
   Integer id;
 
   @Version
-  Integer version;
+  Integer version = 0;
 }
 ```
 
